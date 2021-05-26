@@ -11,6 +11,7 @@ var OFFWHITE = "#f9fafc";
 var BLUE = "#3b79b4";
 var RED = "#b4583b"
 var BLACK = "#000000"
+var DIFFICULTY = 0.8
 
 function randomOffset(min, max) {
     return (Math.random() * (max - min)) + min;
@@ -69,14 +70,14 @@ Paddle.prototype.move = function (x, y) {
         this.y = 0;
         this.y_speed = 0;
     }
-    else if (this.y + this.height > HEIGHT) {
-        this.y = HEIGHT - this.height;
+    else if (this.y + this.width > HEIGHT) {
+        this.y = HEIGHT - this.width;
         this.y_speed = 0;
     }
 };
 
 // Ball functions
-function Ball(x, y, speedX, speedY, rad, color) {
+function Ball(x, y, speedX, speedY, rad) {
     this.radius = rad || 5;
     this.default_x_position = function () {
         return typeof x === 'undefined' ? WIDTH / 2 : x;
@@ -84,7 +85,7 @@ function Ball(x, y, speedX, speedY, rad, color) {
     this.default_y_position = function () {
         return typeof y === 'undefined' ? HEIGHT / 2 : y;
     }
-
+    this.color = BLACK
     this.default_x_speed = function () { return typeof speedX === 'undefined' ? 3 : speedX; };
     this.default_y_speed = function () { return typeof speedY === 'undefined' ? 0 : speedY; };
 
@@ -108,11 +109,11 @@ function Ball(x, y, speedX, speedY, rad, color) {
 Ball.prototype.render = function (ctx) {
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.radius, 2 * Math.PI, false);
+    ctx.fillStyle = this.color;
     ctx.fill();
 };
 
 Ball.prototype.update = function (playerRight, playerLeft) {
-    // The speed is applied to the x and y positions of the ball, which moves the ball.
     this.x += this.x_speed;
     this.y += this.y_speed;
 
@@ -121,14 +122,9 @@ Ball.prototype.update = function (playerRight, playerLeft) {
     var left_y = this.y;
     var right_x = this.x + this.radius;
     var right_y = this.y;
-    var top_x = this.x - this.radius;
-    var top_y = this.y - this.radius;
-    var bottom_x = this.x + this.radius;
-    var bottom_y = this.y + this.radius;
     var paddleLeft = playerLeft.paddle;
     var paddleRight = playerRight.paddle;
 
-    // Figures out if the ball direction should change.
     var ballHitLeftWall = this.y - this.radius < 0;
     var ballHitRightWall = this.y + this.radius > HEIGHT;
     if (ballHitLeftWall) {
@@ -140,7 +136,6 @@ Ball.prototype.update = function (playerRight, playerLeft) {
         this.y_speed = -this.y_speed;
     }
 
-    // When somebody scores, reset the ball to the center.
     var leftScored = this.x < 0;
     var rightScored = this.x > WIDTH;
     if (leftScored || rightScored) {
@@ -155,10 +150,6 @@ Ball.prototype.update = function (playerRight, playerLeft) {
         this.reset();
     }
 
-    // Determines how much to change the ball speed.
-    // When the ball hits a paddle:
-    // the ball vertical trajectory reverses and gets set to a randomly but loosely based on the paddle speed,
-    // and the horizontal speed increases by half the speed of the paddle.
 
     var ballInRightOfScreen = right_x > (WIDTH * 0.75);
     if (ballInRightOfScreen) {
@@ -196,6 +187,7 @@ Ball.prototype.update = function (playerRight, playerLeft) {
     }
 
 };
+
 // Player functions
 function Player() {
     this.score = 0;
@@ -225,21 +217,21 @@ Player.prototype.update = function (keysDown) {
     }
 };
 
-Computer.prototype.update = function (keysDown) {
-    var value;
-    for (var key in keysDown) {
-        value = Number(key);
-        if (value === LEFTARROW) {
-            this.paddle.move(0, 4);
-        }
-        else if (value === RIGHTARROW) {
-            this.paddle.move(0, -4);
-        }
-        else {
-            this.paddle.move(0, 0);
-        }
-    }
-};
+// Computer.prototype.update = function (keysDown) {
+//     var value;
+//     for (var key in keysDown) {
+//         value = Number(key);
+//         if (value === LEFTARROW) {
+//             this.paddle.move(0, 4);
+//         }
+//         else if (value === RIGHTARROW) {
+//             this.paddle.move(0, -4);
+//         }
+//         else {
+//             this.paddle.move(0, 0);
+//         }
+//     }
+// };
 
 // Computer functions
 function Computer() {
@@ -248,10 +240,34 @@ function Computer() {
     var paddleY = (HEIGHT / 2) - (PADDLEWIDTH / 2);
     this.paddle = new Paddle(paddleX, paddleY, RED);
 }
+
 Computer.prototype.render = function (ctx) {
     this.paddle.render(ctx);
     ctx.fillText(this.score.toString(), 5, 30);
 };
+
+Computer.prototype.update = function (ball) {
+    var ball_y_position = ball.y;
+
+    var diff = -((this.paddle.y + (this.paddle.height / 2)) - ball_y_position);
+    if (diff < 0 && diff < -4) {
+        diff = -5;
+    }
+    else if (diff > 0 && diff > 4) {
+        diff = 5;
+    }
+
+    this.paddle.move(0, diff * randomOffset(DIFFICULTY, 1));
+
+    if (this.paddle.y < 0) {
+        this.paddle.y = 0;
+    }
+    else if (this.paddle.y + this.paddle.width > HEIGHT) {
+        this.paddle.y = HEIGHT - this.paddle.width;
+    }
+};
+
+
 
 
 function pong(appendToElementId, window, document) {
@@ -285,7 +301,7 @@ function pong(appendToElementId, window, document) {
 
     function update() {
         player.update(keysDown);
-        computer.update(keysDown);
+        computer.update(ball);
         ball.update(player, computer);
     }
 
